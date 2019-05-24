@@ -1,0 +1,60 @@
+ internal static void Static_AStar_LB_Internal_Backward_OTA(INetwork pNetwork, ILSQueue pLSQueue, IHeuristicFunction pHeuristicFunction, double baseRate, List<double> correctFactor)
+        {
+            //Step 1. Initialization:
+            //set Pr:={p}
+            double hCost;
+            LinkedList<NormalRspLabel> pDominantedLabels;                    //paths dominated by the new generated label
+
+            bool bNonDominant = false;                      //whether the new generated label is non-dominant path
+            NormalRspLabel pChosenLabel, pAdjacentLabel;
+            INormalRspNode pChosenNode, pAdjacentNode;   //selected labelset at node u. Pru
+            NormalTollLink pAdjacentLink;
+            while (pLSQueue.NodeCount > 0)
+            {
+                //Step 2. Node selection:
+                pChosenLabel = (NormalRspLabel)pLSQueue.ExtractMin();     //Select label-vectors Pru at the top of SE. SE:=SE\{Pru}
+
+                //Step 4. Path expansion:
+                //get the label set at chosen node
+                pChosenNode = pChosenLabel.AssociatedNode;
+                foreach (INetLink pNetLink in pChosenNode.PredecessorLinks.Values)
+                {
+                    pAdjacentLink = (NormalTollLink)pNetLink;
+                    pAdjacentNode = (INormalRspNode)pAdjacentLink.TailNode;
+
+                    if (pHeuristicFunction != null)
+                    {
+                        hCost = pHeuristicFunction.GetHeuristicDistance(pAdjacentNode);
+                    }
+                    else
+                    {
+                        hCost = 0;
+                    }
+
+                    pAdjacentLabel = pChosenLabel.ExpandAcylic(false, pAdjacentLink, hCost);
+                    if (pAdjacentLabel != null)  //if newly generated path is acylic·ÇÑ­»·µÄ
+                    {
+
+                        double emission = 31.5 / pAdjacentLink.Speed * pAdjacentLink.Length/1000* CalEmission(baseRate, correctFactor, pAdjacentLink.Bin);
+
+
+                        pAdjacentLabel.SetPQCost(Round(emission) + Round(hCost));
+                        if (pAdjacentNode.BackwardMinRspLabel == null)    //if no path is generated for adjacent node
+                        {
+                            pAdjacentNode.BackwardMinRspLabel = pAdjacentLabel;
+                            pLSQueue.Insert(pAdjacentLabel);
+                        }
+                        else  //a path has been generated for adjacent node
+                        {
+                            //if the path cost of newly generated path is less than that of previous generated path
+                            if (pAdjacentLabel.TimeBudget < pAdjacentNode.BackwardMinRspLabel.TimeBudget)
+                            {
+                                pLSQueue.Delete(pAdjacentNode.BackwardMinRspLabel);
+                                pAdjacentNode.BackwardMinRspLabel = pAdjacentLabel;
+                                pLSQueue.Insert(pAdjacentLabel);
+                            }
+                        }
+                    }
+                }
+            }
+        }
